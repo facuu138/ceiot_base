@@ -56,23 +56,92 @@ app.post('/measurement', function (req, res) {
     // When a POST request is made to the '/measurement' endpoint, the function is executed. 
     // The function calls the insertMeasurement function to insert the data into a collection
     console.log('POST request a /measurement')
-    -       console.log("device id    : " + req.body.id + " key         : " + req.body.key + " temperature : " + req.body.t + " humidity    : " + req.body.h);
-    const { insertedId } = insertMeasurement({ id: req.body.id, t: req.body.t, h: req.body.h, });
-    res.send("received measurement into " + insertedId);
+
+    // Check if the request body contains id and either t or h
+    if (!req.body.id || (!req.body.t && !req.body.h)) {
+        let missingFields = [];
+        if (!req.body.id) missingFields.push('id');
+        if (!req.body.t && !req.body.h) missingFields.push('t or h');
+        console.log(`Bad Request: Missing required fields - ${missingFields.join(', ')}`)
+        return res.status(400).send(`Bad Request: Missing required fields - ${missingFields.join(', ')}`);
+    }
+
+    // Check if t and h are numbers
+    let temperature, humidity;
+    if (req.body.t) {
+        temperature = parseFloat(req.body.t);
+        if (isNaN(temperature)) {
+            console.log('Bad Request: t must be a number')
+            return res.status(400).send('Bad Request: t must be a number');
+        }
+    }
+    if (req.body.h) {
+        humidity = parseFloat(req.body.h);
+        if (isNaN(humidity)) {
+            console.log('Bad Request: h must be a number')
+            return res.status(400).send('Bad Request: h must be a number');
+        }
+    }
+
+    // Check if humidity is non-negative
+    if (humidity !== undefined && humidity < 0) {
+        console.log('Bad Request: Humidity cannot be negative')
+        return res.status(400).send('Bad Request: Humidity cannot be negative');
+    }
+
+    // Check if the device exists in the database (in-memory simulation)
+    if (db && db.public) {
+        const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
+        const queryResult = db.public.query(query);
+
+        if (queryResult.rows.length === 0) {
+            console.log(`Device with ID ${req.body.id} not found`)
+            return res.status(404).send(`Device with ID ${req.body.id} not found`);
+        } else {
+            // Device exists, proceed with inserting measurement
+            console.log("device id    : " + req.body.id + " key         : " + req.body.key + " temperature : " + req.body.t + " humidity    : " + req.body.h);
+            insertMeasurement({ id: req.body.id, t: req.body.t, h: req.body.h });
+            return res.send(`Received measurement for device ${req.body.id}`);
+        }
+    }
 });
 
 app.post('/device', function (req, res) {
-    // When a POST request is made to the '/device' endpoint, the function is executed. 
-    // The function logs the information contained in the POST request into the console
-    console.log('POST request a /device')
-    const timestamp = new Date();
-    console.log("device id    : " + req.body.id + " name        : " + req.body.n + " key         : " + req.body.k);
-    // Insert a new row into a table named devices
-    db.public.none("INSERT INTO devices VALUES ('" + req.body.id + "', '" + req.body.n + "', '" + req.body.k + "','" + timestamp + "')");
-    // Send a response back to the client
-    res.send("received new device");
+    console.log('POST request at /device');
+
+    if (db && db.public) {
+        const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
+        const queryResult = db.public.query(query);
+
+        const id = req.body.id
+        const name = req.body.n
+        const key = req.body.k
+
+        if (queryResult.rows.length === 0) {
+            // Validation checks
+            if (!isNumber(id) || id > 99999 || typeof name !== 'string' || name.length > 20 || !isNumber(key) || key > 9999999) {
+                return res.status(400).send('Invalid device data');
+            }
+            const timestamp = new Date();
+            console.log("device id    : " + id + " name        : " + name + " key         : " + key);
+
+            db.public.none("INSERT INTO devices VALUES ('" + id + "', '" + name + "', '" + key + "','" + timestamp + "')");
+
+            res.send("Received new device");
+        } else {
+            // Device exists
+            console.log(`Device with ID ${id} already exists`)
+            return res.status(404).send(`Device with ID ${id} already exists`);
+        }
+    }
+
+    
 });
 
+// Helper function to check if a value is a number
+function isNumber(value) {
+    return !isNaN(parseFloat(value)) && isFinite(value);
+}
 
 app.get('/web/device', function (req, res) {
     // Queries a database for a list of devices and generates an HTML response to display them in a table format.
@@ -80,14 +149,14 @@ app.get('/web/device', function (req, res) {
     var devices = db.public.many("SELECT * FROM devices").map(function (device) {
         console.log(device);
         return '<tr><td><a href=/web/device/' + device.device_id + '>' + device.device_id + "</a>" +
-            "</td><td>" + device.name + "</td><td>" + device.key + "</td><td>" + device.timestamp + "</td></tr>"; // Se agrega el timestamp en la tabla html
+            "</td><td>" + device.name + "</td><td>" + device.key + "</td><td>" + device.created_date + "</td></tr>"; // Se agrega el timestamp en la tabla html
     }
     );
     res.send("<html>" +
         "<head><title>Sensores</title></head>" +
         "<body>" +
         "<table border=\"1\">" +
-        "<tr><th>id</th><th>name</th><th>key</th><th>timestamp</th></tr>" +
+        "<tr><th>id</th><th>name</th><th>key</th><th>created_date</th></tr>" +
         devices +
         "</table>" +
         "</body>" +
@@ -103,14 +172,14 @@ app.get('/web/device/:id', function (req, res) {
         "<h1>{{ name }}</h1>" +
         "id  : {{ id }}<br/>" +
         "Key : {{ key }}<br/>" +
-        "timestamp : {{ timestamp }}" + //agregamos timestamp
+        "created_date : {{ created_date }}" + //agregamos timestamp
         "</body>" +
         "</html>";
 
 
     var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + req.params.id + "'");
     console.log(device);
-    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, timestamp: device[0].timestamp }));
+    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date }));
 });
 
 
@@ -125,10 +194,10 @@ app.get('/term/device/:id', function (req, res) {
     var template = "Device name " + red + "   {{name}}" + reset + "\n" +
         "       id   " + green + "       {{ id }} " + reset + "\n" +
         "       key  " + blue + "  {{ key }}" + reset + "\n" +
-        "       timestamp   " + black + "   {{ timestamp }}" + reset + "\n"; //agregamos timestamp al traer un id en especifico y se agrega el color negro
+        "       created_date   " + black + "   {{ created_date }}" + reset + "\n"; //agregamos timestamp al traer un id en especifico y se agrega el color negro
     var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + req.params.id + "'");
     console.log(device);
-    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, timestamp: device[0].timestamp })); //agregamos timestamp al traer un id en especifico
+    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date })); //agregamos timestamp al traer un id en especifico
 });
 
 app.get('/measurement', async (req, res) => {
@@ -150,7 +219,7 @@ startDatabase().then(async () => {
     await insertMeasurement({ id: '01', t: '17', h: '77' });
     console.log("Coleccion 'measurements' en MongoDB creada");
 
-    db.public.none("CREATE TABLE devices (device_id VARCHAR, name VARCHAR, key VARCHAR, timestamp TIMESTAMP)");
+    db.public.none("CREATE TABLE devices (device_id VARCHAR, name VARCHAR, key VARCHAR, created_date TIMESTAMP)");
     db.public.none("INSERT INTO devices VALUES ('00', 'Fake Device 00', '123456', CURRENT_TIMESTAMP)");
     db.public.none("INSERT INTO devices VALUES ('01', 'Fake Device 01', '234567', CURRENT_TIMESTAMP)");
     db.public.none("CREATE TABLE users (user_id VARCHAR, name VARCHAR, key VARCHAR)");
