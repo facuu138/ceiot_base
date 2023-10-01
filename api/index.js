@@ -115,9 +115,9 @@ app.post('/measurement', function (req, res) {
 app.post('/device', function (req, res) {
     console.log('POST request at /device');
 
-    const id = req.body.id
-    const name = req.body.n
-    const key = req.body.k
+    const id = sanitizeInput(req.body.id);
+    const name = sanitizeInput(req.body.n);
+    const key = sanitizeInput(req.body.k);
 
     const queryDevices = "SELECT device_id FROM devices WHERE device_id = '" + req.body.id + "'";
     const queryResult = db.public.query(queryDevices);
