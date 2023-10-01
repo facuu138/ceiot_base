@@ -1,17 +1,17 @@
 // Initialize API
-console.log("Inicializando API...")
-const express = require("express"); // Import express framework
-const bodyParser = require("body-parser"); // Import body-parser
-const { MongoClient } = require("mongodb"); // import mongodb
-const PgMem = require("pg-mem"); // import postgreSQL
+console.log("Initialize API...")
+const express = require("express");
+const bodyParser = require("body-parser"); 
+const { MongoClient } = require("mongodb");
+const PgMem = require("pg-mem");
 
 const db = PgMem.newDb(); // Create a new instance of the in-memory db
 
-const render = require("./render.js");
-// Measurements database setup and access
+const render = require("./render.js"); 
 
-let database = null; // Initialize the variable
-const collectionName = "measurements"; // Initialize collection name
+// Measurements database setup and access
+let database = null;
+const collectionName = "measurements";
 
 async function startDatabase() {
     // Set up a connection to MongoDB
@@ -29,10 +29,10 @@ async function getDatabase() {
 } 
 
 async function insertMeasurement(message) {
-    const timestamp = new Date(); // Add timestamp
-    const measures = { id: message.id, t: message.t, h: message.h, timestamp: timestamp}; // Se agregan los valores tal cual del mensaje + el timestamp
     // Function that inserts a Measurement into a specified collection
-    const { insertedId } = await database.collection(collectionName).insertOne(measures); // cambiamos message por measures para evaluar timestamp
+    const timestamp = new Date(); // Add timestamp
+    const measures = { id: message.id, t: message.t, h: message.h, timestamp: timestamp}; // Add all values to the database
+    const { insertedId } = await database.collection(collectionName).insertOne(measures);
     console.log(`Medida perteneciente a device ${message.id} insertada`)
     return insertedId;
 }
@@ -43,14 +43,13 @@ async function getMeasurements() {
 }
 
 // API Server
+const app = express();
 
-const app = express(); // Creates instance of the express application
-
-app.use(bodyParser.urlencoded({ extended: false })); // Sets the application to use body-parser for parsing the URL-encoded request bodies
+app.use(bodyParser.urlencoded({ extended: false }));
 
 app.use(express.static('spa/static'));
 
-const PORT = 8080; // Set port number where server will listen on
+const PORT = 8080;
 
 app.post('/measurement', function (req, res) {
     // When a POST request is made to the '/measurement' endpoint, the function is executed. 
@@ -107,8 +106,10 @@ app.post('/measurement', function (req, res) {
 app.post('/device', function (req, res) {
     console.log('POST request at /device');
 
-    const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
-    const queryResult = db.public.query(query);
+    const queryDevices = "SELECT device_id FROM devices WHERE device_id = '" + req.body.id + "'";
+    const queryResult = db.public.query(queryDevices);
+
+    const queryKeys = "SELECT key FROM devices WHERE key = '" + req.body.k + "'";
 
     const id = req.body.id
     const name = req.body.n
@@ -116,9 +117,36 @@ app.post('/device', function (req, res) {
 
     if (queryResult.rows.length === 0) {
         // Validation checks
-        if (!isNumber(id) || id > 99999 || typeof name !== 'string' || name.length > 20 || !isNumber(key) || key > 9999999) {
-            return res.status(400).send('Invalid device data');
+        if (!isNumber(id)) {
+            console.log('ID must be a number');
+            return res.status(400).send('ID must be a number');
         }
+        
+        if (id > 99999) {
+            console.log('ID must be less than or equal to 99999');
+            return res.status(400).send('ID must be less than or equal to 99999');
+        }
+        
+        if (name.length < 5 || name.length > 20) {
+            console.log('Name length must be between 5 and 20 characters');
+            return res.status(400).send('Name length must be between 5 and 20 characters');
+        }
+        
+        if (!isNumber(key)) {
+            console.log('Key must be a number');
+            return res.status(400).send('Key must be a number');
+        }
+        
+        if (key < 111111 || key > 9999999) {
+            console.log('Key must be a 6 or 7 digit number');
+            return res.status(400).send('Key must be a 6 or 7 digit number');
+        }
+
+        if (db.public.query(queryKeys).rows.length > 0) {
+            console.log('Key already exists');
+            return res.status(400).send('Key already exists');
+        }
+        
         const timestamp = new Date();
         console.log("device id: " + id + "\nname: " + name + "\nkey: " + key);
 
@@ -143,7 +171,7 @@ app.get('/web/device', function (req, res) {
     var devices = db.public.many("SELECT * FROM devices").map(function (device) {
         console.log(device);
         return '<tr><td><a href=/web/device/' + device.device_id + '>' + device.device_id + "</a>" +
-            "</td><td>" + device.name + "</td><td>" + device.key + "</td><td>" + device.created_date + "</td></tr>"; // Se agrega el timestamp en la tabla html
+            "</td><td>" + device.name + "</td><td>" + device.key + "</td><td>" + device.created_date + "</td></tr>";
     }
     );
     res.send("<html>" +
@@ -154,7 +182,7 @@ app.get('/web/device', function (req, res) {
         devices +
         "</table>" +
         "</body>" +
-        "</html>"); // Se agrega el timestamp al encabezado de la tabla html
+        "</html>");
 });
 
 app.get('/web/device/:id', function (req, res) {
@@ -166,7 +194,7 @@ app.get('/web/device/:id', function (req, res) {
         "<h1>{{ name }}</h1>" +
         "id  : {{ id }}<br/>" +
         "Key : {{ key }}<br/>" +
-        "created_date : {{ created_date }}" + //agregamos timestamp
+        "created_date : {{ created_date }}" +
         "</body>" +
         "</html>";
 
@@ -183,15 +211,15 @@ app.get('/term/device/:id', function (req, res) {
     var red = "\33[31m";
     var green = "\33[32m";
     var blue = "\33[33m";
-    var black = "\33[34m"; // se agrega el color negro para timestamp
+    var black = "\33[34m";
     var reset = "\33[0m";
     var template = "Device name " + red + "   {{name}}" + reset + "\n" +
         "       id   " + green + "       {{ id }} " + reset + "\n" +
         "       key  " + blue + "  {{ key }}" + reset + "\n" +
-        "       created_date   " + black + "   {{ created_date }}" + reset + "\n"; //agregamos timestamp al traer un id en especifico y se agrega el color negro
+        "       created_date   " + black + "   {{ created_date }}" + reset + "\n";
     var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + req.params.id + "'");
     console.log(device);
-    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date })); //agregamos timestamp al traer un id en especifico
+    res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date })); 
 });
 
 app.get('/measurement', async (req, res) => {
