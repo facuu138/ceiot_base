@@ -51,31 +51,40 @@ app.use(express.static('spa/static'));
 
 const PORT = 8080;
 
+// Helper function to remove all single quotes
+function sanitizeInput(input) {
+    return input.replace(/'/g, '');
+}
+
 app.post('/measurement', function (req, res) {
     // When a POST request is made to the '/measurement' endpoint, the function is executed. 
     // The function calls the insertMeasurement function to insert the data into a collection
     console.log('POST request a /measurement')
 
+    const deviceId = sanitizeInput(req.body.id);
+    const temp = sanitizeInput(req.body.t);
+    const hum = sanitizeInput(req.body.h);
+
     // Check if the request body contains id and either t or h
-    if (!req.body.id || (!req.body.t && !req.body.h)) {
+    if (!deviceId || (!temp && !hum)) {
         let missingFields = [];
-        if (!req.body.id) missingFields.push('id');
-        if (!req.body.t && !req.body.h) missingFields.push('t or h');
+        if (!deviceId) missingFields.push('id');
+        if (!temp && !hum) missingFields.push('t or h');
         console.log(`Bad Request: Missing required fields - ${missingFields.join(', ')}`)
         return res.status(400).send(`Bad Request: Missing required fields - ${missingFields.join(', ')}`);
     }
 
     // Check if t and h are numbers
     let temperature, humidity;
-    if (req.body.t) {
-        temperature = parseFloat(req.body.t);
+    if (temp) {
+        temperature = parseFloat(temp);
         if (isNaN(temperature)) {
             console.log('Bad Request: t must be a number')
             return res.status(400).send('Bad Request: temperature must be a number');
         }
     }
-    if (req.body.h) {
-        humidity = parseFloat(req.body.h);
+    if (hum) {
+        humidity = parseFloat(hum);
         if (isNaN(humidity)) {
             console.log('Bad Request: h must be a number')
             return res.status(400).send('Bad Request: humidity must be a number');
@@ -89,31 +98,31 @@ app.post('/measurement', function (req, res) {
     }
 
     // Check if the device exists in the database (in-memory simulation)
-    const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
+    const query = "SELECT * FROM devices WHERE device_id = '"+deviceId+"'";
     const queryResult = db.public.query(query);
 
     if (queryResult.rows.length === 0) {
-        console.log(`Device with ID ${req.body.id} not found`)
-        return res.status(404).send(`Device with ID ${req.body.id} not found`);
+        console.log(`Device with ID ${deviceId} not found`)
+        return res.status(404).send(`Device with ID ${deviceId} not found`);
     } else {
         // Device exists, proceed with inserting measurement
-        console.log("device id: " + req.body.id + "\ntemperature: " + req.body.t + "\nhumidity: " + req.body.h);
-        insertMeasurement({ id: req.body.id, t: req.body.t, h: req.body.h });
-        return res.send(`Received measurement for device ${req.body.id}`);
+        console.log("device id: " + deviceId + "\ntemperature: " + temp + "\nhumidity: " + hum);
+        insertMeasurement({ id: deviceId, t: temp, h: hum });
+        return res.send(`Received measurement for device ${deviceId}`);
     }
 });
 
 app.post('/device', function (req, res) {
     console.log('POST request at /device');
 
+    const id = sanitizeInput(req.body.id);
+    const name = sanitizeInput(req.body.n);
+    const key = sanitizeInput(req.body.k);
+
     const queryDevices = "SELECT device_id FROM devices WHERE device_id = '" + req.body.id + "'";
     const queryResult = db.public.query(queryDevices);
 
     const queryKeys = "SELECT key FROM devices WHERE key = '" + req.body.k + "'";
-
-    const id = req.body.id
-    const name = req.body.n
-    const key = req.body.k
 
     if (queryResult.rows.length === 0) {
         // Validation checks
