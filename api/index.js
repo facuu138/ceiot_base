@@ -72,70 +72,64 @@ app.post('/measurement', function (req, res) {
         temperature = parseFloat(req.body.t);
         if (isNaN(temperature)) {
             console.log('Bad Request: t must be a number')
-            return res.status(400).send('Bad Request: t must be a number');
+            return res.status(400).send('Bad Request: temperature must be a number');
         }
     }
     if (req.body.h) {
         humidity = parseFloat(req.body.h);
         if (isNaN(humidity)) {
             console.log('Bad Request: h must be a number')
-            return res.status(400).send('Bad Request: h must be a number');
+            return res.status(400).send('Bad Request: humidity must be a number');
         }
     }
 
     // Check if humidity is non-negative
     if (humidity !== undefined && humidity < 0) {
         console.log('Bad Request: Humidity cannot be negative')
-        return res.status(400).send('Bad Request: Humidity cannot be negative');
+        return res.status(400).send('Bad Request: humidity cannot be negative');
     }
 
     // Check if the device exists in the database (in-memory simulation)
-    if (db && db.public) {
-        const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
-        const queryResult = db.public.query(query);
+    const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
+    const queryResult = db.public.query(query);
 
-        if (queryResult.rows.length === 0) {
-            console.log(`Device with ID ${req.body.id} not found`)
-            return res.status(404).send(`Device with ID ${req.body.id} not found`);
-        } else {
-            // Device exists, proceed with inserting measurement
-            console.log("device id    : " + req.body.id + " key         : " + req.body.key + " temperature : " + req.body.t + " humidity    : " + req.body.h);
-            insertMeasurement({ id: req.body.id, t: req.body.t, h: req.body.h });
-            return res.send(`Received measurement for device ${req.body.id}`);
-        }
+    if (queryResult.rows.length === 0) {
+        console.log(`Device with ID ${req.body.id} not found`)
+        return res.status(404).send(`Device with ID ${req.body.id} not found`);
+    } else {
+        // Device exists, proceed with inserting measurement
+        console.log("device id: " + req.body.id + "\ntemperature: " + req.body.t + "\nhumidity: " + req.body.h);
+        insertMeasurement({ id: req.body.id, t: req.body.t, h: req.body.h });
+        return res.send(`Received measurement for device ${req.body.id}`);
     }
 });
 
 app.post('/device', function (req, res) {
     console.log('POST request at /device');
 
-    if (db && db.public) {
-        const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
-        const queryResult = db.public.query(query);
+    const query = "SELECT * FROM devices WHERE device_id = '" + req.body.id + "'";
+    const queryResult = db.public.query(query);
 
-        const id = req.body.id
-        const name = req.body.n
-        const key = req.body.k
+    const id = req.body.id
+    const name = req.body.n
+    const key = req.body.k
 
-        if (queryResult.rows.length === 0) {
-            // Validation checks
-            if (!isNumber(id) || id > 99999 || typeof name !== 'string' || name.length > 20 || !isNumber(key) || key > 9999999) {
-                return res.status(400).send('Invalid device data');
-            }
-            const timestamp = new Date();
-            console.log("device id    : " + id + " name        : " + name + " key         : " + key);
-
-            db.public.none("INSERT INTO devices VALUES ('" + id + "', '" + name + "', '" + key + "','" + timestamp + "')");
-
-            res.send("Received new device");
-        } else {
-            // Device exists
-            console.log(`Device with ID ${id} already exists`)
-            return res.status(404).send(`Device with ID ${id} already exists`);
+    if (queryResult.rows.length === 0) {
+        // Validation checks
+        if (!isNumber(id) || id > 99999 || typeof name !== 'string' || name.length > 20 || !isNumber(key) || key > 9999999) {
+            return res.status(400).send('Invalid device data');
         }
-    }
+        const timestamp = new Date();
+        console.log("device id: " + id + "\nname: " + name + "\nkey: " + key);
 
-    
+        db.public.none("INSERT INTO devices VALUES ('" + id + "', '" + name + "', '" + key + "','" + timestamp + "')");
+
+        res.send("Received new device");
+    } else {
+        // Device exists
+        console.log(`Device with ID ${id} already exists`)
+        return res.status(404).send(`Device with ID ${id} already exists`);
+    }   
 });
 
 // Helper function to check if a value is a number
