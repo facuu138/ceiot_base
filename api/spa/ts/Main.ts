@@ -2,6 +2,7 @@ interface DeviceInt {
   device_id:string;
   name: string;
   key:string;
+  created_date: string;
 }
 
 class Main implements EventListenerObject, GETResponseListener {
