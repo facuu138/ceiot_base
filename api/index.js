@@ -176,7 +176,15 @@ function isNumber(value) {
 
 app.get('/web/device', function (req, res) {
     // Queries a database for a list of devices and generates an HTML response to display them in a table format.
-    console.log(`GET request a /web/device para ${req.params.id}`)
+    const deviceId = sanitizeInput(req.params.id);
+
+    if (deviceId === '' || !isNumber(deviceId)) {
+        console.log('Device id not valid');
+        return res.send('Device id not valid');
+    };
+
+    console.log(`GET request a /web/device para ${deviceId}`)
+
     var devices = db.public.many("SELECT * FROM devices").map(function (device) {
         console.log(device);
         return '<tr><td><a href=/web/device/' + device.device_id + '>' + device.device_id + "</a>" +
@@ -196,7 +204,15 @@ app.get('/web/device', function (req, res) {
 
 app.get('/web/device/:id', function (req, res) {
     // Queries the database for a specific device based on the ID provided in the URL and generates an HTML response to display its details.
-    console.log(`GET request a /web/device/:id para ${req.params.id}`)
+
+    const deviceId = sanitizeInput(req.params.id);
+
+    if (deviceId === '' || !isNumber(deviceId)) {
+        console.log('Device id not valid');
+        return res.send('Device id not valid');
+    };
+
+    console.log(`GET request a /web/device/:id para ${deviceId}`);
     var template = "<html>" +
         "<head><title>Sensor {{name}}</title></head>" +
         "<body>" +
@@ -207,8 +223,7 @@ app.get('/web/device/:id', function (req, res) {
         "</body>" +
         "</html>";
 
-
-    var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + req.params.id + "'");
+    var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + deviceId + "'");
     console.log(device);
     res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date }));
 });
@@ -216,6 +231,14 @@ app.get('/web/device/:id', function (req, res) {
 
 app.get('/term/device/:id', function (req, res) {
     // Queries the database for a specific device based on the ID provided in the URL, but it generates a response suitable for terminal output.
+
+    const deviceId = sanitizeInput(req.params.id);
+
+    if (deviceId === '' || !isNumber(deviceId)) {
+        console.log('Device id not valid');
+        return res.send('Device id not valid');
+    };
+
     console.log('GET request a /term/device/:id')
     var red = "\33[31m";
     var green = "\33[32m";
@@ -226,7 +249,7 @@ app.get('/term/device/:id', function (req, res) {
         "       id   " + green + "       {{ id }} " + reset + "\n" +
         "       key  " + blue + "  {{ key }}" + reset + "\n" +
         "       created_date   " + black + "   {{ created_date }}" + reset + "\n";
-    var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + req.params.id + "'");
+    var device = db.public.many("SELECT * FROM devices WHERE device_id = '" + deviceId + "'");
     console.log(device);
     res.send(render(template, { id: device[0].device_id, key: device[0].key, name: device[0].name, created_date: device[0].created_date })); 
 });
