@@ -119,10 +119,10 @@ app.post('/device', function (req, res) {
     const name = sanitizeInput(req.body.n);
     const key = sanitizeInput(req.body.k);
 
-    const queryDevices = "SELECT device_id FROM devices WHERE device_id = '" + req.body.id + "'";
+    const queryDevices = "SELECT device_id FROM devices WHERE device_id = '" + id + "'";
     const queryResult = db.public.query(queryDevices);
 
-    const queryKeys = "SELECT key FROM devices WHERE key = '" + req.body.k + "'";
+    const queryKeys = "SELECT key FROM devices WHERE key = '" + key + "'";
 
     if (queryResult.rows.length === 0) {
         // Validation checks
@@ -176,14 +176,7 @@ function isNumber(value) {
 
 app.get('/web/device', function (req, res) {
     // Queries a database for a list of devices and generates an HTML response to display them in a table format.
-    const deviceId = sanitizeInput(req.params.id);
-
-    if (deviceId === '' || !isNumber(deviceId)) {
-        console.log('Device id not valid');
-        return res.send('Device id not valid');
-    };
-
-    console.log(`GET request a /web/device para ${deviceId}`)
+    console.log(`GET request a /web/device`)
 
     var devices = db.public.many("SELECT * FROM devices").map(function (device) {
         console.log(device);
